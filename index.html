@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GeoJSON CRS Coordinate Converter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.7.5/proj4.js"></script>
+  </head>
+  <body>
+    <h1>GeoJSON CRS Coordinate Converter</h1>
+    <label for="inputCRS">Input CRS:</label>
+    <input type="text" id="inputCRS" value="4326" />
+    <br /><br />
+    <label for="outputCRS">Output CRS:</label>
+    <input type="text" id="outputCRS" value="25832" />
+    <br /><br />
+    <label for="coordinatesInput">Coordinate Input:</label>
+    <textarea
+      id="coordinatesInput"
+      rows="10"
+      cols="50"
+      placeholder="z.B. [[[7.50645183, 51.49071832], ...]]"
+    ></textarea>
+    <br /><br />
+    <button onclick="convertCoordinates()">Convert</button>
+    <button onclick="swapCRS()">Swap Input/Output</button>
+    <br /><br />
+    <label for="coordinatesOutput">Coordinate Output:</label>
+    <textarea id="coordinatesOutput" rows="10" cols="50" readonly></textarea>
+
+    <script>
+      // Definition für EPSG:25832 (UTM Zone 32N)
+      proj4.defs(
+        "EPSG:25832",
+        "+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs"
+      );
+
+      function convertCoordinates() {
+        const inputCRS = `EPSG:${document.getElementById("inputCRS").value}`;
+        const outputCRS = `EPSG:${document.getElementById("outputCRS").value}`;
+        const coordinatesInput = JSON.parse(
+          document.getElementById("coordinatesInput").value
+        );
+
+        let transformedCoordinates;
+
+        // Überprüfen, ob es sich um ein Polygon oder MultiPolygon handelt
+        if (Array.isArray(coordinatesInput) && coordinatesInput.length > 0) {
+          if (
+            typeof coordinatesInput[0] === "number" &&
+            typeof coordinatesInput[1] === "number"
+          ) {
+            console.log("point");
+            validatePoint(coordinatesInput);
+            transformedCoordinates = proj4(
+              inputCRS,
+              outputCRS,
+              coordinatesInput
+            );
+          } else if (Array.isArray(coordinatesInput[0][0][0])) {
+            // MultiPolygon
+            transformedCoordinates = coordinatesInput.map((polygon) => {
+              return polygon.map((ring) => {
+                return ring.map((point) => {
+                  console.log("multi");
+                  validatePoint(point);
+                  return proj4(inputCRS, outputCRS, point);
+                });
+              });
+            });
+          } else {
+            // Polygon
+            transformedCoordinates = coordinatesInput.map((ring) => {
+              return ring.map((point) => {
+                console.log("poly");
+                validatePoint(point);
+                return proj4(inputCRS, outputCRS, point);
+              });
+            });
+          }
+        } else {
+          throw new Error(
+            "Invalid input format. Input must be an array of points, polygons or multipolygons."
+          );
+        }
+
+        document.getElementById("coordinatesOutput").value = JSON.stringify(
+          transformedCoordinates,
+          null,
+          2
+        );
+      }
+
+      function validatePoint(point) {
+        if (
+          !Array.isArray(point) ||
+          point.length !== 2 ||
+          !point.every((num) => isFinite(num))
+        ) {
+          throw new Error(
+            `Invalid point format: ${JSON.stringify(
+              point
+            )}. Points must be arrays with two finite numbers.`
+          );
+        }
+      }
+
+      function swapCRS() {
+        const inputCRS = document.getElementById("inputCRS").value;
+        const outputCRS = document.getElementById("outputCRS").value;
+
+        document.getElementById("inputCRS").value = outputCRS;
+        document.getElementById("outputCRS").value = inputCRS;
+
+        const coordinatesInput =
+          document.getElementById("coordinatesInput").value;
+        document.getElementById("coordinatesInput").value =
+          document.getElementById("coordinatesOutput").value;
+        document.getElementById("coordinatesOutput").value = coordinatesInput;
+      }
+    </script>
+  </body>
+</html>
